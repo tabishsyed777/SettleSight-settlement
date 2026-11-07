@@ -96,10 +96,16 @@ kpi=dict(n=len(rows),high=sum(r["risk"]=="HIGH" for r in rows),med=sum(r["risk"]
          save=sum(r["save"] for r in rows),auc=round(auc,3),base=round(base,3),breach=breach,
          now=NOW.strftime("%H:%M"),cutoff=CUT.strftime("%H:%M"),mins=int((CUT-NOW).total_seconds()//60))
 DATA=dict(kpi=kpi,trades=rows,liq=liq,thr=thr,coll=coll,audit=audit,labels=LABELS,
-          model=dict(weights={FEATS[j]:round(w[j],3) for j in range(6)},bias=round(b,3),auc=kpi["auc"]))
+          model=dict(weights={FEATS[j]:round(w[j],6) for j in range(6)},
+                     means={FEATS[j]:mu[j] for j in range(6)},
+                     stds={FEATS[j]:sd[j] for j in range(6)},
+                     bias=b,auc=kpi["auc"],cost_rate=COST_RATE,rescue_rate=.7,
+                     features=FEATS,actions=ACTION))
 (ROOT/"data/synthetic_output.json").write_text(json.dumps(DATA,indent=1))
 (ROOT/"data/audit_log.jsonl").write_text("\n".join(json.dumps(a) for a in audit))
 tpl=ROOT/"src/template.html"
-if tpl.exists(): (ROOT/"dist/index.html").write_text(tpl.read_text().replace("__DATA__",json.dumps(DATA)))
+if tpl.exists():
+    (ROOT/"dist/index.html").write_text(tpl.read_text().replace("__DATA__",json.dumps(DATA)))
+    (ROOT/"dist/live_trades_template.csv").write_text((ROOT/"data/live_trades_template.csv").read_text())
 print(f"AUC={auc:.3f} base_fail={base:.3f} high={kpi['high']} med={kpi['med']} exp_cost=${kpi['exp_cost']:,} saveable=${kpi['save']:,} breach_hours={breach}")
 print("collateral $/day naive vs optimised:",c_nai,c_opt)

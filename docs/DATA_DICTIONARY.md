@@ -16,6 +16,18 @@ only; they do not identify real trades or institutions.
 
 ## Main output files
 
+### data/live_trades_template.csv and dist/live_trades_template.csv
+
+Example input file for the dashboard's local CSV refresh. Required columns are `notional`
+and the six model features below. `dist/live_trades_template.csv` is the copy served beside the
+GitHub Pages dashboard. Optional display fields are `trade_id`, `cp`, `security`,
+and `isin`. Amounts are USD; hours are hours; ratio features are 0–1 except
+`size_pressure`, which is nonnegative. The file is parsed in the browser and is not uploaded.
+
+The CSV refresh scores a snapshot using the model fit to synthetic training records. It does
+not create validated real-world predictions. Liquidity, collateral, and the original audit
+example continue to represent the built-in synthetic scenario.
+
 ### data/synthetic_output.json
 
 - kpi: book counts, risk totals, expected costs, estimated savings, model AUC, base rate,

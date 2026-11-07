@@ -37,46 +37,51 @@ button[aria-pressed=true]{background:var(--ink);color:#fff}button:focus-visible{
 <header><div class="top"><h1>SettleSight</h1><div class="sub">T+1 settlement control tower · synthetic data · model <span class="num" id="mv"></span></div></div>
 <div class="runway" id="runway" aria-label="Time to settlement cutoff"></div></header>
 <main>
+<section class="import"><h2>Refresh trades from CSV</h2><p class="note">Choose a newer trade export to recalculate scores in this browser. The file is not uploaded or saved. This is a manual snapshot refresh, not a live streaming feed. <a href="live_trades_template.csv" download>Download example CSV</a></p><label for="csvfile">Trade CSV</label> <input id="csvfile" type="file" accept=".csv,text/csv"> <span class="note" id="source">Showing the built-in synthetic demo snapshot.</span><p class="note" id="csvmsg" role="status"></p></section>
 <div class="kpis" id="kpis"></div>
 <div class="grid">
  <section><h2>Trades ranked by chance of failing to settle</h2><div class="tabs" id="f"></div><div class="scroll"><table><thead><tr><th>Trade</th><th>Counterparty</th><th>Security</th><th>Notional</th><th>Fail risk</th><th>Level</th></tr></thead><tbody id="tb"></tbody></table></div></section>
  <section id="detail"></section>
 </div>
 <div class="grid">
- <section><h2>Intraday cash position ($m)</h2><div class="lg"><span><i style="background:#2a5d9f"></i>Expected</span><span><i style="background:#c8372d"></i>If at-risk trades fail</span><span><i style="background:#d89200"></i>Minimum buffer</span></div><div id="liq"></div><p class="note" id="liqn"></p></section>
- <section><h2>Collateral allocation</h2><div id="coll"></div></section>
+ <section><h2>Intraday cash position ($m) · demo scenario</h2><div class="lg"><span><i style="background:#2a5d9f"></i>Expected</span><span><i style="background:#c8372d"></i>If at-risk trades fail</span><span><i style="background:#d89200"></i>Minimum buffer</span></div><div id="liq"></div><p class="note" id="liqn"></p></section>
+ <section><h2>Collateral allocation · demo scenario</h2><div id="coll"></div></section>
 </div>
 <section><h2>Alert audit trail</h2><p class="note">Every alert records the model version, score, drivers and action, so a reviewer can reconstruct why it was raised.</p><div class="scroll" style="max-height:240px"><table><thead><tr><th>Time</th><th>Trade</th><th>Score</th><th>Why it was raised</th><th>Action</th><th>Status</th></tr></thead><tbody id="au"></tbody></table></div></section>
-<p class="note">All trades, counterparties and balances are simulated. Costs use illustrative rates (1bp penalty, 5% funding, 1bp operations). Not connected to any bank system.</p>
+<p class="note">Built-in trades, counterparties and balances are simulated. Imported rows come from the CSV you select. All scores use a model trained on synthetic labels; costs use illustrative rates (1bp penalty, 5% funding, 1bp operations). Not connected to any bank system.</p>
 </main>
 <script>
 const D=__DATA__,$=s=>document.querySelector(s),usd=n=>"$"+Math.round(n).toLocaleString("en-US"),
-m=n=>n>=1e6?"$"+(n/1e6).toFixed(1)+"m":"$"+Math.round(n/1e3)+"k",K=D.kpi;
-$("#mv").textContent=D.model.weights?"logreg-v1.3 · AUC "+K.auc:"";
+m=n=>n>=1e6?"$"+(n/1e6).toFixed(1)+"m":"$"+Math.round(n/1e3)+"k";
+let K=D.kpi, imported=false;
+$("#mv").textContent=D.model.weights?"logreg-v1.3 · synthetic-trained":"";
 // runway: now -> cutoff, trades as ticks by risk
-const tot=K.mins;$("#runway").innerHTML=`<div class="bar"></div><div class="fill" style="width:4%" id="fl"></div>`+
-D.trades.filter(t=>t.risk!="LOW").map(t=>`<div class="tick" title="${t.id}" style="left:${Math.min(98,(1-t.hrs*60/ (tot+120))*100)}%;height:${t.risk=="HIGH"?34:20}px;top:${t.risk=="HIGH"?8:22}px;background:${t.risk=="HIGH"?"#ff6b5e":"#f0b429"}"></div>`).join("")+
-`<div class="rl" style="left:0">Now ${K.now} ET</div><div class="rl" style="right:0">Cutoff ${K.cutoff} ET · ${Math.floor(tot/60)}h ${tot%60}m left · each tick is a trade at risk</div>`;
-requestAnimationFrame(()=>$("#fl").style.width="12%");
-$("#kpis").innerHTML=[["r",K.high,"high-risk trades"],["a",m(K.at_risk),"notional at high risk"],["a",usd(K.exp_cost),"expected fail cost today"],
-["g",usd(K.save),"saveable if actions are taken"],["",K.breach.length?K.breach.map(h=>h+":00").join(", "):"None","hours below cash buffer in stress"]]
+let flt="ALL",sel=D.trades[0]?.id;
+function paintSnapshot(){const tot=K.mins;$("#runway").innerHTML=`<div class="bar"></div><div class="fill" style="width:12%"></div>`+
+D.trades.filter(t=>t.risk!=="LOW").map(t=>`<div class="tick" title="${esc(t.id)}" style="left:${Math.min(98,Math.max(1,(1-t.hrs*60/(tot+120))*100))}%;height:${t.risk==="HIGH"?34:20}px;top:${t.risk==="HIGH"?8:22}px;background:${t.risk==="HIGH"?"#ff6b5e":"#f0b429"}"></div>`).join("")+ 
+`<div class="rl" style="left:0">Snapshot</div><div class="rl" style="right:0">Demo cutoff ${K.cutoff} · ${Math.floor(tot/60)}h ${tot%60}m left · each tick is a trade at risk</div>`;
+$("#kpis").innerHTML=[["r",K.high,"high-risk trades"],["a",m(K.at_risk),"notional at high risk"],["a",usd(K.exp_cost),"expected fail cost · illustrative"],
+["g",usd(K.save),"estimated saveable · illustrative"],["",K.breach.length?K.breach.map(h=>h+":00").join(", "):"None","demo stress buffer breach hours"]]
 .map(([c,v,l])=>`<div class="k ${c}"><b class="num">${v}</b><span>${l}</span></div>`).join("");
-let flt="ALL",sel=D.trades[0].id;
-$("#f").innerHTML=["ALL","HIGH","MED","LOW"].map(x=>`<button aria-pressed="${x==flt}" data-f="${x}">${x=="ALL"?"All "+K.n:x[0]+x.slice(1).toLowerCase()}</button>`).join("");
+$("#f").innerHTML=["ALL","HIGH","MED","LOW"].map(x=>`<button aria-pressed="${x==flt}" data-f="${x}">${x=="ALL"?"All "+K.n:x[0]+x.slice(1).toLowerCase()}</button>`).join("");}
 $("#f").onclick=e=>{if(!e.target.dataset.f)return;flt=e.target.dataset.f;[...$("#f").children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.f==flt));rows()};
-function rows(){$("#tb").innerHTML=D.trades.filter(t=>flt=="ALL"||t.risk==flt).map(t=>`<tr class="row ${t.id==sel?"sel":""}" tabindex="0" data-id="${t.id}"><td class="num">${t.id}</td><td>${t.cp}</td><td>${t.sec}</td><td class="num">${m(t.notional)}</td><td class="num">${(t.p*100).toFixed(1)}%</td><td><span class="pill ${t.risk}">${t.risk}</span></td></tr>`).join("");detail()}
+function rows(){$("#tb").innerHTML=D.trades.filter(t=>flt=="ALL"||t.risk==flt).map(t=>`<tr class="row ${t.id==sel?"sel":""}" tabindex="0" data-id="${esc(t.id)}"><td class="num">${esc(t.id)}</td><td>${esc(t.cp)}</td><td>${esc(t.sec)}</td><td class="num">${m(t.notional)}</td><td class="num">${(t.p*100).toFixed(1)}%</td><td><span class="pill ${t.risk}">${t.risk}</span></td></tr>`).join("");detail()}
 const pick=e=>{const r=e.target.closest("tr.row");if(r){sel=r.dataset.id;rows()}};$("#tb").onclick=pick;$("#tb").onkeydown=e=>{if(e.key=="Enter")pick(e)};
-function detail(){const t=D.trades.find(x=>x.id==sel),mx=Math.max(...t.drivers.map(d=>d.c),.1);
-$("#detail").innerHTML=`<h2>${t.id} · ${t.sec} · ${m(t.notional)}</h2><p>Chance of failing before ${K.cutoff} ET: <b class="num">${(t.p*100).toFixed(1)}%</b> (book average ${(K.base*100).toFixed(1)}%)</p>
-<b>What is driving the score</b>${t.drivers.map(d=>`<div class="drv"><span>${d.label}</span><i style="width:${d.c/mx*100}%"></i><span class="num">+${d.c}</span></div>`).join("")}
-<div class="act"><b>Recommended: ${t.rec}</b><br><span class="note">Expected cost avoided ≈ ${usd(t.save)} (assumes 70% of at-risk trades are rescued)</span></div>
+function esc(v){return String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c]))}
+function detail(){const t=D.trades.find(x=>x.id==sel);if(!t){$("#detail").innerHTML="<h2>No trades in this risk filter</h2>";return}const mx=Math.max(...t.drivers.map(d=>d.c),.1);
+$("#detail").innerHTML=`<h2>${esc(t.id)} · ${esc(t.sec)} · ${m(t.notional)}</h2><p>Chance of failing before ${K.cutoff} ET: <b class="num">${(t.p*100).toFixed(1)}%</b> (book average ${(K.base*100).toFixed(1)}%)</p>
+<b>What is driving the score</b>${t.drivers.map(d=>`<div class="drv"><span>${esc(d.label)}</span><i style="width:${d.c/mx*100}%"></i><span class="num">+${d.c}</span></div>`).join("")}
+<div class="act"><b>Recommended: ${esc(t.rec)}</b><br><span class="note">Expected cost avoided ≈ ${usd(t.save)} (assumes 70% of at-risk trades are rescued)</span></div>
 <b>Matching ISO 20022 message (sese.023)</b><pre>${`&lt;SctiesSttlmTxInstr&gt;
   &lt;TxId&gt;${t.id}&lt;/TxId&gt;
   &lt;SttlmParams&gt;&lt;SttlmDt&gt;&lt;Dt&gt;2026-11-09&lt;/Dt&gt;&lt;/SttlmDt&gt;&lt;SctiesMvmntTp&gt;DELI&lt;/SctiesMvmntTp&gt;&lt;/SttlmParams&gt;
-  &lt;FinInstrmId&gt;&lt;OthrId&gt;&lt;Id&gt;${t.isin}&lt;/Id&gt;&lt;/OthrId&gt;&lt;/FinInstrmId&gt;
+  &lt;FinInstrmId&gt;&lt;OthrId&gt;&lt;Id&gt;${esc(t.isin)}&lt;/Id&gt;&lt;/OthrId&gt;&lt;/FinInstrmId&gt;
   &lt;QtyAndAcctDtls&gt;&lt;SttlmAmt&gt;&lt;Amt Ccy="USD"&gt;${t.notional}&lt;/Amt&gt;&lt;/SttlmAmt&gt;&lt;/QtyAndAcctDtls&gt;
-  &lt;DlvrgSttlmPties&gt;&lt;Pty1&gt;&lt;Id&gt;${t.cp}&lt;/Id&gt;&lt;/Pty1&gt;&lt;/DlvrgSttlmPties&gt;
+  &lt;DlvrgSttlmPties&gt;&lt;Pty1&gt;&lt;Id&gt;${esc(t.cp)}&lt;/Id&gt;&lt;/Pty1&gt;&lt;/DlvrgSttlmPties&gt;
 &lt;/SctiesTxInstr&gt;`}</pre>`}
+function parseCSV(text){const out=[];let row=[],cell="",quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')quoted=false;else cell+=c}else if(c==='"')quoted=true;else if(c===","){row.push(cell);cell=""}else if(c==="\n"){row.push(cell.replace(/\r$/, ""));out.push(row);row=[];cell=""}else cell+=c}if(quoted)throw Error("CSV has an unclosed quoted field.");if(cell.length||row.length){row.push(cell.replace(/\r$/, ""));out.push(row)}return out.filter(r=>r.some(v=>v.trim()!==""))}
+function importCSV(text){const table=parseCSV(text),features=D.model.features,required=["notional",...features];if(table.length<2)throw Error("Add a header row and at least one trade row.");const heads=table[0].map(h=>h.trim().toLowerCase()),ix=Object.fromEntries(heads.map((h,i)=>[h,i])),missing=required.filter(h=>ix[h]===undefined);if(missing.length)throw Error("Missing required columns: "+missing.join(", "));const records=table.slice(1).map((cells,n)=>{const get=h=>(cells[ix[h]]??"").trim(),num=h=>{const raw=get(h),v=Number(raw);if(raw===""||!Number.isFinite(v))throw Error("Row "+(n+2)+": "+h+" must be a finite number.");return v},x=features.map(num),notional=num("notional");if(x[0]<0||x[0]>1||x[1]<0||x[1]>1||![0,1].includes(x[2])||x[3]<0||x[4]<0||x[4]>24||x[5]<0)throw Error("Row "+(n+2)+": feature value outside expected range.");if(notional<=0)throw Error("Row "+(n+2)+": notional must be greater than zero.");const z=x.map((v,j)=>(v-D.model.means[features[j]])/D.model.stds[features[j]]),parts=z.map((v,j)=>v*D.model.weights[features[j]]),score=D.model.bias+parts.reduce((a,b)=>a+b,0),prob=1/(1+Math.exp(-score)),order=parts.map((v,j)=>j).sort((a,b)=>parts[b]-parts[a]);let top=order.filter(j=>parts[j]>.05).slice(0,3);if(!top.length)top=[order[0]];const risk=prob>=.30?"HIGH":prob>=.12?"MED":"LOW",cost=notional*D.model.cost_rate,id=get("trade_id")||"CSV-"+(n+1);return{id,cp:get("cp")||"Unknown",sec:get("security")||"Unspecified",isin:get("isin")||"",notional,p:prob,risk,exp_cost:Math.round(prob*cost),save:risk==="LOW"?0:Math.round(prob*cost*D.model.rescue_rate),rec:D.model.actions[features[top[0]]],hrs:x[4],drivers:top.map(j=>({label:D.labels[features[j]],c:Math.round(parts[j]*100)/100,v:x[j]}))}});const high=records.filter(t=>t.risk==="HIGH");K={...D.kpi,n:records.length,high:high.length,med:records.filter(t=>t.risk==="MED").length,at_risk:high.reduce((a,t)=>a+t.notional,0),exp_cost:records.reduce((a,t)=>a+t.exp_cost,0),save:records.reduce((a,t)=>a+t.save,0)};D.trades=records.sort((a,b)=>b.p-a.p);imported=true;flt="ALL";sel=D.trades[0].id;paintSnapshot();rows();$("#source").textContent="Imported CSV snapshot · "+K.n+" trades · synthetic-trained demo model";$("#csvmsg").textContent="Updated locally. Cash and collateral remain demo scenarios.";$("#au").innerHTML='<tr><td colspan="6">No audit events for this CSV snapshot. Earlier audit rows were synthetic demo alerts.</td></tr>'}
+$("#csvfile").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];if(!file)return;try{importCSV(await file.text())}catch(err){$("#csvmsg").textContent="Could not import CSV: "+err.message}finally{e.target.value=""}});
 // liquidity chart
 (function(){const L=D.liq,W=620,H=250,p=36,xs=i=>p+i*(W-p-10)/(L.length-1),lo=Math.min(D.thr,...L.map(l=>l.stress))-100,hi=Math.max(...L.map(l=>l.bal))+100,ys=v=>H-24-(v-lo)/(hi-lo)*(H-40);
 const ln=k=>L.map((l,i)=>(i?"L":"M")+xs(i).toFixed(1)+","+ys(l[k]).toFixed(1)).join("");
@@ -89,5 +94,5 @@ $("#liqn").textContent=K.breach.length?`Warning: in the stress case the buffer o
 (function(){const c=D.coll,s=c.naive_cost-c.opt_cost;
 $("#coll").innerHTML=`<p>Cheapest-to-deliver allocation saves <b class="num">${usd(s)}/day</b> (${usd(s*252)}/yr) versus pledging the largest assets first. Haircuts and venue eligibility are respected.</p><div class="scroll" style="max-height:300px"><table><thead><tr><th>Requirement</th><th>Asset</th><th>Pledged $m</th><th>Value $m</th><th>Cost bps</th></tr></thead><tbody>${c.opt.map(r=>`<tr><td>${r.req}</td><td>${r.asset}</td><td class="num">${r.pledged}</td><td class="num">${r.value}</td><td class="num">${r.bps}</td></tr>`).join("")}</tbody></table></div><p class="note">Daily funding cost: optimised ${usd(c.opt_cost)} vs naive ${usd(c.naive_cost)}.</p>`})();
 $("#au").innerHTML=D.audit.map(a=>`<tr><td class="num">${a.ts.slice(11)}</td><td class="num">${a.trade}</td><td class="num">${(a.score*100).toFixed(0)}%</td><td><ul class="why" style="margin:0;padding-left:16px">${a.why.map(w=>`<li>${w}</li>`).join("")}</ul></td><td>${a.action}</td><td>${a.status}</td></tr>`).join("");
-rows();
+paintSnapshot();rows();
 </script></body></html>

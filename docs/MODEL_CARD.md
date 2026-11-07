@@ -34,7 +34,10 @@ not establish calibration, operational value, robustness, or suitability for a b
   model monitoring, or model governance process.
 - Features and actions are hand-designed for the demo.
 - The fixed 70% rescue assumption is not learned or validated.
-- The dashboard is a static scenario, not a live scoring service.
+- CSV uploads can rescore a manually refreshed snapshot in the browser. They do not create a
+  continuous feed, and all uploaded scores still come from this synthetic-trained model.
+- Liquidity and collateral views remain fixed synthetic scenarios; CSV imports do not update
+  them or create audit records.
 
 ## Changes required before any real pilot
 

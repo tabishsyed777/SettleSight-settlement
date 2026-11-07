@@ -17,8 +17,12 @@ The static dashboard is published on GitHub Pages:
 
 **[Open SettleSight](https://tabishsyed777.github.io/SettleSight-settlement/)**
 
-The page shows the generated scenario committed to the repository. It does not stream live
-trades. To refresh the scenario, regenerate the files and push the updated outputs to main.
+The page is published as a static site. It does not stream trades automatically. To refresh
+the trade queue without an API or server, use the dashboard's **Refresh trades from CSV**
+control and select a new export. The CSV is read in your browser and is not uploaded. The page
+then recalculates the ranked trade list, scores, suggested actions, and trade KPIs. Each import
+is a snapshot; choose a newer export when you want to refresh it again. Liquidity, collateral,
+and the built-in audit example remain clearly marked demo scenarios.
 
 ## Run locally
 
@@ -61,6 +65,25 @@ scenario.
 | Intraday liquidity | Expected cash and a stress case that removes at-risk receipts, compared with a minimum buffer |
 | Collateral | Greedy cheapest-to-deliver allocation compared with a largest-assets-first baseline |
 | Alert audit trail | Alert time, trade, model score, contributing drivers, suggested action, and status |
+
+## Refresh from a trade CSV
+
+1. Open the [dashboard](https://tabishsyed777.github.io/SettleSight-settlement/).
+2. Download the example at `data/live_trades_template.csv` and fill it with a trade export.
+3. In the dashboard, choose the CSV file. The trade table and trade KPIs refresh immediately.
+
+Required columns are `notional`, `cp_fail_rate`, `illiquidity`, `ssi_missing`,
+`affirm_delay_h`, `hrs_to_cutoff`, and `size_pressure`. Add `trade_id`, `cp`, `security`,
+and `isin` for readable identifiers; if omitted, the dashboard supplies basic placeholders.
+Notional is in USD. Rates and liquidity are ratios from 0 to 1, `ssi_missing` is 0 or 1, and
+the delay and cutoff fields are hours. `size_pressure` is a nonnegative ratio. Use a standard
+comma-separated CSV with a header row. Invalid or out-of-range values are rejected with a row
+number.
+
+This is a simple manual refresh, not a continuous real-time feed. The uploaded file stays in
+the current browser page and disappears when the page is reloaded. No file contents are sent
+to GitHub Pages or any backend. The model itself was trained on synthetic data, so scores for
+real trades are an unvalidated demonstration and must not be used to direct settlement actions.
 
 ## How the prototype works
 
@@ -107,10 +130,12 @@ for exercising the user interface and pipeline only.
 │   ├── build.py          # synthetic data, model, scoring, scenarios, audit, dashboard build
 │   └── template.html     # dashboard template populated by the generator
 ├── dist/
-│   └── index.html        # ready-to-open, self-contained dashboard
+│   ├── index.html        # ready-to-open, self-contained dashboard
+│   └── live_trades_template.csv # downloadable example for the dashboard
 ├── data/
 │   ├── synthetic_output.json
-│   └── audit_log.jsonl
+│   ├── audit_log.jsonl
+│   └── live_trades_template.csv
 ├── docs/
 │   ├── DATA_DICTIONARY.md
 │   └── MODEL_CARD.md
@@ -139,10 +164,9 @@ for more detail.
 The workflow at .github/workflows/pages.yml publishes the contents of dist/ after each push
 to main. To refresh the hosted dashboard:
 
-1. Run python3 src/build.py.
-2. Commit the changed files in dist/ and data/.
-3. Push the commit to main.
-4. Check the Pages workflow under the repository's Actions tab.
+To publish source or dashboard changes, run `python3 src/build.py`, commit the changed files,
+and push to `main`. The Pages workflow publishes the updated static dashboard. CSV imports
+made by a dashboard visitor stay in their browser and do not require a GitHub commit.
 
 The public dashboard URL is https://tabishsyed777.github.io/SettleSight-settlement/.
 
