@@ -11,6 +11,17 @@ open dist/index.html        # self-contained dashboard, no server or internet ne
 ```
 No dependencies beyond Python 3.8+.
 
+## Publish the dashboard on GitHub Pages
+
+In the repository settings, open Pages and set the build and deployment source to
+GitHub Actions. The workflow in .github/workflows/pages.yml publishes the dist folder on
+each push to main. Once its first run succeeds, the dashboard will be available at:
+
+https://tabishsyed777.github.io/SettleSight-settlement/
+
+The hosted dashboard is a static snapshot. Run python3 src/build.py and commit the
+updated dist/index.html whenever you want to refresh its synthetic data.
+
 ## What is inside
 | Module | What it does | Where |
 |---|---|---|
